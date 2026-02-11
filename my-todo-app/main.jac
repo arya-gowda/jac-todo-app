@@ -37,6 +37,9 @@ def categorize(title: str) -> Category by llm();
 """Generate a shopping list of ingredients needed for a described meal."""
 def generate_ingredients(meal_description: str) -> list[Ingredient] by llm();
 
+"""Take a broad task and suggest 3-5 specific, actionable sub-steps."""
+def suggest_subtasks(task_description: str) -> list[str] by llm();
+
 # --- Data Nodes ---
 
 node Todo {
@@ -195,5 +198,15 @@ walker:priv ClearMealPlan {
     can clear with MealIngredient entry {
         del here;
         report {"cleared": True};
+    }
+}
+
+# --- Suggestion Walker ---
+walker:priv SuggestSubtasks {
+    has task_description: str;
+
+    can generate with Root entry {
+        subtasks = suggest_subtasks(self.task_description);
+        report subtasks;
     }
 }

@@ -26,17 +26,58 @@ def:pub app -> any {
         todosLoading: bool = True,
         mealInput: str = "",
         ingredients: list = [],
-        ingredientsLoading: bool = False;
+        ingredientsLoading: bool = False,
+        isDarkMode: bool = False,
+        searchText: str = "",
+        filterStatus: str = "all"; # "all", "active", "completed"
 
     can with entry {
         isLoggedIn = jacIsLoggedIn();
         checkingAuth = False;
+
+        # Restore theme preference from localStorage (if available)
+        if typeof(localStorage) != "undefined" {
+            saved = localStorage.getItem("isDarkMode");
+            if saved != None {
+                isDarkMode = (saved == "true");
+            }
+        }
     }
 
     can with [isLoggedIn] entry {
         if isLoggedIn {
             fetchTodos();
             fetchMealPlan();
+        }
+    }
+
+    # Sync theme to document body so background/styles apply globally
+    can with entry {
+        if typeof(document) != "undefined" {
+            if isDarkMode {
+                document.body.classList.add("dark-theme");
+                document.body.classList.remove("light-theme");
+            } else {
+                document.body.classList.add("light-theme");
+                document.body.classList.remove("dark-theme");
+            }
+        }
+    }
+
+    can with [isDarkMode] entry {
+        if typeof(document) != "undefined" {
+            if isDarkMode {
+                document.body.classList.add("dark-theme");
+                document.body.classList.remove("light-theme");
+            } else {
+                document.body.classList.add("light-theme");
+                document.body.classList.remove("dark-theme");
+            }
+        }
+
+        # Persist preference
+        if typeof(localStorage) != "undefined" {
+            localStorage.setItem("isDarkMode", ("true" if isDarkMode else "false"));
         }
     }
 
@@ -67,8 +108,11 @@ def:pub app -> any {
 
     if isLoggedIn {
         totalCost = getIngredientsTotal();
-        return
-            <div className="app-container">
+        return (
+            <div className={ "app-container " + ("dark-theme" if isDarkMode else "light-theme") }>
+                <button onClick={lambda -> None { isDarkMode = not isDarkMode; }} className="btn-theme-toggle">
+                    { "🌙 Dark Mode" if not isDarkMode else "☀️ Light Mode" }
+                </button>
                 <div className="app-content">
                     <div className="card">
                         <div className="card-header">
@@ -108,6 +152,23 @@ def:pub app -> any {
                                     <div className="loading-message">Loading tasks...</div>
                                 ) if todosLoading else (
                                     <div>
+                                        <div className="controls">
+                                            <input
+                                                className="input"
+                                                placeholder="Search todos..."
+                                                value={searchText}
+                                                onChange={lambda e: any -> None { searchText = e.target.value; }}
+                                            />
+                                            <select
+                                                className="select-filter"
+                                                onChange={lambda e: any -> None { filterStatus = e.target.value; }}
+                                            >
+                                                <option value="all">All</option>
+                                                <option value="active">Active</option>
+                                                <option value="completed">Completed</option>
+                                            </select>
+                                        </div>
+
                                         {(
                                             <div className="empty-message">
                                                 No tasks yet. Add one above!
@@ -116,11 +177,16 @@ def:pub app -> any {
                                             <div>
                                                 {[
                                                     <TodoItem
-                                                        key={todo.id}
-                                                        todo={todo}
+                                                        key={t.id}
+                                                        todo={t}
                                                         onToggle={toggleTodo}
                                                         onDelete={deleteTodo}
-                                                    /> for todo in todos
+                                                    /> for t in todos
+                                                    if (searchText.lower() in t.title.lower()) and (
+                                                        filterStatus == "all" or
+                                                        (filterStatus == "active" and not t.completed) or
+                                                        (filterStatus == "completed" and t.completed)
+                                                    )
                                                 ]}
                                             </div>
                                         )}
@@ -196,7 +262,8 @@ def:pub app -> any {
                         </div>
                     </div>
                 </div>
-            </div>;
+            </div>
+        );
     }
 
     return

@@ -133,3 +133,31 @@ impl app.getIngredientsTotal -> float {
     }
     return total;
 }
+
+impl app.get_suggestions(task_title: str) -> None {
+    # Call the server walker that wraps the LLM suggestion function
+    result = root spawn SuggestSubtasks(task_description=task_title);
+    suggestions = result.reports[0] if result.reports else [];
+
+    # Add each suggestion as a new todo (skip empties and duplicates)
+    existing_titles: list = [];
+    for t in todos { existing_titles.append(t.title.lower()); }
+
+    for s in suggestions {
+        if not s or not s.trim() { continue; }
+        title = s.trim();
+        if title.lower() in existing_titles { continue; }
+
+        resp = root spawn AddTodo(title=title);
+        newTodo = resp.reports[0] if resp.reports else None;
+        if newTodo {
+            todos = todos.concat([{
+                "id": newTodo.id,
+                "title": newTodo.title,
+                "completed": newTodo.completed,
+                "category": newTodo.category
+            }]);
+            existing_titles.append(newTodo.title.lower());
+        }
+    }
+}
